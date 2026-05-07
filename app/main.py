@@ -12,7 +12,10 @@ app = FastAPI(title="Distill API")
 # Allow React frontend to talk to this backend
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173"],
+    allow_origins=[
+        "http://localhost:5173",
+        "https://distill-frontend-ynts.onrender.com",
+    ],
     allow_methods=["*"],
     allow_headers=["*"],
 )

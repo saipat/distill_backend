@@ -1,8 +1,10 @@
 import os
+import requests
 from youtube_transcript_api import YouTubeTranscriptApi
 from urllib.parse import urlparse, parse_qs
 
 SCRAPER_API_KEY = os.getenv("SCRAPER_API_KEY")
+
 
 def extract_video_id(url: str) -> str:
     parsed = urlparse(url)
@@ -15,9 +17,14 @@ def extract_video_id(url: str) -> str:
 
 def get_transcript(url: str) -> list[dict]:
     video_id = extract_video_id(url)
-    proxy_url = f"http://scraperapi:{SCRAPER_API_KEY}@proxy-server.scraperapi.com:8001"
-    ytt_api = YouTubeTranscriptApi(proxies={"http": proxy_url, "https": proxy_url})
+
+    session = requests.Session()
+    session.verify = False
+    session.headers.update({"Accept-Language": "en-US,en;q=0.9"})
+
+    ytt_api = YouTubeTranscriptApi(http_client=session)
     fetched = ytt_api.fetch(video_id)
+
     transcript = [
         {"text": snippet.text, "start": snippet.start, "duration": snippet.duration}
         for snippet in fetched
@@ -32,6 +39,10 @@ def get_full_text(url: str) -> str:
 
 def get_chunked_transcript(url: str, chunk_size: int = 800) -> list[dict]:
     segments = get_transcript(url)
+
+    if not segments:
+        return []
+
     chunks = []
     current_words = []
     current_start = segments[0]["start"]

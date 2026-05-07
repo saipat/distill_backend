@@ -14,74 +14,33 @@ def get_quiz(url: str) -> list[dict]:
     if len(chunks) <= 3:
         text = get_full_text(url)
     else:
-        summaries = []
-        for chunk in chunks:
-            summaries.append(_quick_summary(chunk["text"]))
+        summaries = [_quick_summary(chunk["text"]) for chunk in chunks]
         text = "\n\n".join(summaries)
 
-    prompt = """You are an expert learning assistant for an app called Distill.
-
-Generate 5 quiz questions based on the transcript below.
-Mix of question types: 3 multiple choice and 2 typed/open-ended.
-
-Return ONLY a valid JSON array. No extra text, no markdown, no code fences.
-
-For multiple choice questions, each object must have:
-- "id": unique string like "q1", "q2" etc
-- "type": "multiple_choice"
-- "question": the question text
-- "options": array of exactly 4 answer strings
-- "correctAnswer": the correct option (must match one of the options exactly)
-- "explanation": 1-2 sentences explaining why the answer is correct
-
-For typed/open-ended questions, each object must have:
-- "id": unique string
-- "type": "typed"
-- "question": the question text
-- "options": null
-- "correctAnswer": a model answer showing what a good response looks like
-- "explanation": 1-2 sentences with extra context
-
-Example:
-[
-  {
-    "id": "q1",
-    "type": "multiple_choice",
-    "question": "What is the main advantage of attention over RNNs?",
-    "options": ["Fewer parameters", "Direct token-to-token connections regardless of distance", "Faster inference", "Smaller memory usage"],
-    "correctAnswer": "Direct token-to-token connections regardless of distance",
-    "explanation": "Attention creates a direct learned connection between any two tokens, solving the vanishing gradient problem in long sequences."
-  },
-  {
-    "id": "q2",
-    "type": "typed",
-    "question": "Explain in your own words what the softmax function does in the attention mechanism.",
-    "options": null,
-    "correctAnswer": "Softmax converts raw attention scores into a probability distribution that sums to 1, so each token's contribution is weighted proportionally.",
-    "explanation": "Without softmax the scores would be unbounded and could not be used as mixing weights for the value vectors."
-  }
-]
-
-TRANSCRIPT:
-""" + text[:6000]
+    prompt = (
+        "You are an expert learning assistant for an app called Distill.\n\n"
+        "Generate 5 quiz questions based on the transcript below.\n"
+        "Mix: 3 multiple choice and 2 typed/open-ended.\n\n"
+        "Return a JSON object with a single key 'questions' containing an array.\n\n"
+        "For multiple choice items include: id, type ('multiple_choice'), question, options (array of 4 strings), correctAnswer, explanation.\n"
+        "For typed items include: id, type ('typed'), question, options (null), correctAnswer, explanation.\n\n"
+        "TRANSCRIPT:\n" + text[:6000]
+    )
 
     response = client.chat.completions.create(
         model="gpt-4o-mini",
         messages=[{"role": "user", "content": prompt}],
         temperature=0.3,
+        response_format={"type": "json_object"},
     )
 
     raw = response.choices[0].message.content.strip()
-
-    # Strip markdown code fences if present
-    if raw.startswith("```"):
-        raw = raw.split("```")[1]
-        if raw.startswith("json"):
-            raw = raw[4:]
-    raw = raw.strip()
-
-    questions = json.loads(raw)
-    return questions
+    parsed = json.loads(raw)
+    if isinstance(parsed, dict):
+        for v in parsed.values():
+            if isinstance(v, list):
+                return v
+    return parsed
 
 
 def _quick_summary(text: str) -> str:
@@ -90,7 +49,8 @@ def _quick_summary(text: str) -> str:
         messages=[
             {
                 "role": "user",
-                "content": f"Summarize this transcript excerpt in 3-5 sentences:\n\n{text}",
+                "content": "Summarize this transcript excerpt in 3-5 sentences:\n\n"
+                + text,
             }
         ],
         temperature=0.3,

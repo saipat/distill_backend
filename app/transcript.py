@@ -1,6 +1,8 @@
+import os
 from youtube_transcript_api import YouTubeTranscriptApi
 from urllib.parse import urlparse, parse_qs
 
+SCRAPER_API_KEY = os.getenv("SCRAPER_API_KEY")
 
 def extract_video_id(url: str) -> str:
     parsed = urlparse(url)
@@ -12,17 +14,10 @@ def extract_video_id(url: str) -> str:
 
 
 def get_transcript(url: str) -> list[dict]:
-    """
-    Updated for youtube-transcript-api v0.6+
-    The new version uses a different calling convention.
-    """
     video_id = extract_video_id(url)
-
-    # New API style — create an instance first
-    ytt_api = YouTubeTranscriptApi()
+    proxy_url = f"http://scraperapi:{SCRAPER_API_KEY}@proxy-server.scraperapi.com:8001"
+    ytt_api = YouTubeTranscriptApi(proxies={"http": proxy_url, "https": proxy_url})
     fetched = ytt_api.fetch(video_id)
-
-    # Convert to the same format as before so nothing else breaks
     transcript = [
         {"text": snippet.text, "start": snippet.start, "duration": snippet.duration}
         for snippet in fetched
